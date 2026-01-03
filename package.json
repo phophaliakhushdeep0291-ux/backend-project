@@ -1,16 +1,31 @@
 {
-  "name": "backend-project",
+  "name": "backend-professional",
   "version": "1.0.0",
-  "description": "a backend project in javascript",
-  "keywords": [
-    "javascript",
-    "backend"
-  ],
+  "description": "Professional backend project by Khushdeep Phophalia",
+  "author": "Khushdeep Phophalia",
   "license": "ISC",
-  "author": "khushdeep phophalia",
-  "type": "commonjs",
-  "main": "index.js",
+
+  "type": "module",
+  "main": "src/index.js",
+
+  "keywords": [
+    "nodejs",
+    "backend",
+    "javascript",
+    "api",
+    "express"
+  ],
+
+  "engines": {
+    "node": ">=18.0.0"
+  },
+
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js"
+  },
+
+  "devDependencies": {
+    "nodemon": "^3.1.11"
   }
 }
