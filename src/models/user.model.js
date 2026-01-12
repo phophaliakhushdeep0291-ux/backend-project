@@ -74,7 +74,7 @@ userSchema.methods.generateAccessToken =function(){
         },
         process.env.ACCESS_TOCKEN_SECRET,
         {
-            expiresIn:process.env.ACCESS_TOCKEN_EXPIRY
+            expiresIn: process.env.ACCESS_TOCKEN_EXPIRY
         }
     )
 }
