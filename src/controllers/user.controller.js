@@ -68,7 +68,7 @@ const registerUser= asyncHandler(async(req,res)=>{
         username: username.toLowerCase()
     })
     const createdUser=await User.findById(user._id).select(
-        "-password -RefereshToken"
+        "-password -RefreshToken"
     )
 
     if (!createdUser) {
@@ -157,11 +157,11 @@ const refreshAccessToken= asyncHandler(async(req,res)=>{
     }
 
     try {
-        const decodedtoken=jwt.verify(
+        const decodedToken=jwt.verify(
             incomingRefreshToken,
             process.env.REFRESH_TOKEN_SECRET
         )
-        const user=await User.findById(decodedtoken?._id)
+        const user=await User.findById(decodedToken?._id)
     
         if(!user){
             throw new ApiError(401,"Invalid refresh token")
@@ -210,7 +210,7 @@ const changeCurrentPassword=asyncHandler(async(req,res)=>{
 const getCurrentUser= asyncHandler(async(req,res)=>{
     return res
     .status(200)
-    .json(200,req.user,"current user fetched successfully")
+    .json(new ApiResponse(200,req.user,"current user fetched successfully"))
 
 })
 
@@ -245,6 +245,8 @@ const updateUserAvatar=asyncHandler(async(req,res)=>{
     if(!avatar.url){
         throw new ApiError(400,"Error while uploading avatar")
     }
+    const userBeforeUpdate = await User.findById(req.user?._id);
+    const oldAvatarUrl = userBeforeUpdate?.avatar;
 
     const user=await User.findByIdAndUpdate(
         req.user?._id,
@@ -255,10 +257,18 @@ const updateUserAvatar=asyncHandler(async(req,res)=>{
         },
         {new:true}
     ).select("-password")
+    if(oldAvatarUrl){
+        try {
+            await deleteFromCloudinary(oldAvatarUrl);
+        } catch (error) {
+            console.error("Failed to delete old avatar:",error);
+        }
+    }
     return res
     .status(200)
-    .json(200,user,"Avatar changed successfully")
+    .json(new ApiResponse(200,user,"Avatar changed successfully"))
 })
+
 const updateUserCoverImage=asyncHandler(async(req,res)=>{
     const coverImageLocalPath= req.file?.path
 
@@ -269,7 +279,8 @@ const updateUserCoverImage=asyncHandler(async(req,res)=>{
     if(!coverImage.url){
         throw new ApiError(400,"Error while uploading coverImage")
     }
-
+    const userBeforeUpdate=await User.findById(req.user?._id)
+    const oldCoverImage=userBeforeUpdate?.coverImage
     const user=await User.findByIdAndUpdate(
         req.user?._id,
         {
@@ -279,6 +290,13 @@ const updateUserCoverImage=asyncHandler(async(req,res)=>{
         },
         {new:true}
     ).select("-password")
+    if(oldCoverImage){
+        try {
+            await deleteFromCloudinary(oldCoverImage);
+        } catch (error) {
+            console.error("Failed to delete old coverImage:",error)
+        }
+    }
     return res
     .status(200)
     .json(new ApiResponse(200,user,"Coverimage changed successfully"))
