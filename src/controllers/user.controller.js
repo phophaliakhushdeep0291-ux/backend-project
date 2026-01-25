@@ -4,6 +4,8 @@ import { User } from "../models/user.model.js";
 import {uploadOnCloudinary} from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
+import { validateHeaderName } from "http";
 const generateAccessAndRefreshTokens= async(userId)=>{
     try {
         const user= await User.findById(userId)
@@ -65,18 +67,103 @@ const registerUser= asyncHandler(async(req,res)=>{
         coverImage: coverImage?.url||"",
         email,
         password,
-        username: username.toLowerCase()
+        username: username.toLowerCase(),
+        isEmailVerified:false
     })
+    const verificationToken=user.generateEmailVerificationToken();
+    await user.save({validateBeforeSave:false});
+
+    const verificationUrl = `http://localhost:5173/verify-email/${verificationToken}`;
+
+    const message = `
+        <h1>Welcome to VideoTube!</h1>
+        <p>Hi ${fullname},</p>
+        <p>Thank you for registering! Please verify your email by clicking the link below:</p>
+        <a href="${verificationUrl}" style="display: inline-block; padding: 10px 20px; background-color: #646cff; color: white; text-decoration: none; border-radius: 5px;">Verify Email</a>
+        <p>Or copy this link: ${verificationUrl}</p>
+        <p>This link will expire in 24 hours.</p>
+        <p>If you didn't create this account, please ignore this email.</p>
+    `;
+    try {
+        await sendEmail({
+           to:user.email,
+           subject:"Email Verification - VideoTube",
+           message
+        });
+    } catch (error) {
+        user.emailVerificationToken=undefined;
+        user.emailVerificationExpiry=undefined;
+        await user.save({validateBeforeSave:false});
+        console.error("Failed to send verification email:",error);
+    }
     const createdUser=await User.findById(user._id).select(
-        "-password -RefreshToken"
+        "-password -RefreshToken -emailVerificationToken -emailVerificationExpiry"
     )
 
     if (!createdUser) {
         throw new ApiError(500,"something went wrong while registering the user")
     }
     return res.status(201).json(
-        new ApiResponse(200, createdUser,"user registered succesfully")
+        new ApiResponse(201, createdUser,"user registered succesfully! Please check your email to verify your account.")
     )
+})
+const verifyEmail=asyncHandler(async(req,res)=>{
+    const {token} =req.params;
+    if(!token){
+        throw new ApiError(400,"Verification token is required");
+    }
+    const hashedToken  = crypto.createHash("sha256").update(token).digest("hex");
+    const user = await User.findOne({
+        emailVerificationToken: hashedToken,
+        emailVerificationExpiry:{$gt:Date.now()}
+    })
+    if(!user){
+        throw new ApiError(400,"Invalid or expired verification link")
+    }
+    user.isEmailVerified=true;
+    user.emailVerificationToken=undefined
+    user.emailVerificationExpiry=undefined
+
+    await user.save({validateBeforeSave:false})
+    return res
+    .status(200)
+    .json(new ApiResponse(200,{},"Email verified successfully"))
+})
+const resendEmailVerification=asyncHandler(async(req,res)=>{
+    const user=await User.findById(req.user._id);
+    if(!user){
+        throw new ApiError(404,"User not found");
+    }
+    if(user.isEmailVerified){
+        throw new ApiError(400,"Email arleady verified");
+    }
+    const verificationToken=user.generateEmailVerificationToken();
+    await user.save({validateBeforeSave:false});
+
+    const verificationUrl = `http://localhost:5173/verify-email/${verificationToken}`;
+    const {fullname}=user;
+    const message = `
+        <h1>Welcome to VideoTube!</h1>
+        <p>Hi ${fullname},</p>
+        <p>Thank you for registering! Please verify your email by clicking the link below:</p>
+        <a href="${verificationUrl}" style="display: inline-block; padding: 10px 20px; background-color: #646cff; color: white; text-decoration: none; border-radius: 5px;">Verify Email</a>
+        <p>Or copy this link: ${verificationUrl}</p>
+        <p>This link will expire in 24 hours.</p>
+        <p>If you didn't create this account, please ignore this email.</p>
+    `;
+    try {
+        await sendEmail({
+           to:user.email,
+           subject:"Email Verification - VideoTube",
+           message
+        });
+    } catch (error) {
+        user.emailVerificationToken=undefined;
+        user.emailVerificationExpiry=undefined;
+        await user.save({validateBeforeSave:false});
+        console.error("Failed to send verification email:",error);
+    }
+    return res.status(200).json(new ApiResponse(200,{},"Verification email resent successfully"))
 })
 
 const loginUser= asyncHandler(async (req,res)=>{
@@ -97,7 +184,9 @@ const loginUser= asyncHandler(async (req,res)=>{
     if(!user){
         throw new ApiError(404,"User does not exist")
     }
-
+    if(!user.isEmailVerified){
+        throw new ApiError(403,"Please verify your email before logging in");
+    }
     const isPasswordValid=await user.isPasswordCorrect(password)
     if(!isPasswordValid){
         throw new ApiError(401,"Password is incorrect")
@@ -301,6 +390,59 @@ const updateUserCoverImage=asyncHandler(async(req,res)=>{
     .status(200)
     .json(new ApiResponse(200,user,"Coverimage changed successfully"))
 })
+
+const forgotPassword=asyncHandler(async(req,res)=>{
+    const {email} =req.body;
+    const user=await User.findById({email});
+    if(!user){
+        throw new ApiError(404,"User not found");
+    }
+    const otp=user.generateForgetPasswordToken();
+    await user.save({validateBeforeSave:false});
+    // const resetLink=`http://localhost:5173/verify-email/reset-password?token=${otp}&email=${email}`;
+    const message=`
+            <p>Hello ${user.fullname},</p>
+            <p>Use the following OTP to reset your password:</p>
+            <h2>${otp}</h2>
+            <p>This OTP will expire in 10 minutes.</p>
+        `;
+    try {
+        await sendEmail({
+            to:email,
+            subject:"Reset your password",
+            message
+        });
+    } catch (error) {
+        console.error("Failed to send otp:",error);
+        throw new ApiError(500, "Failed to send OTP");
+    }
+    res.status(200).json(new ApiResponse(200,{},"Password reset email sent"));
+})
+const resetPasswordWithOtp=asyncHandler(async(req,res)=>{
+    const {email,otp,newPassword,confirmPassword}=req.body
+    if(!email||!otp||!newPassword||!confirmPassword){
+        throw new ApiError(400,"All fields are required");
+    }
+    if(newPassword!=confirmPassword){
+        throw new ApiError(400,"Password do not match");
+    }
+
+    const user=await User.findOne({email});
+    if(!user){
+        throw new ApiError(404,"User not found")
+    }
+    const hashedOTP=crypto.createHash("sha256").update(otp).digest("hex")
+    if(!user.forgotPasswordToken||user.forgotPasswordToken!==hashedOTP||!user.forgotPasswordExpiry||user.forgotPasswordExpiry<Date.now()){
+        throw new ApiError(400,"Invalid or expired OTP");
+    }
+    user.password=newPassword;
+    user.forgotPasswordToken=undefined;
+    user.forgotPasswordExpiry=undefined;
+
+    await user.save({validateBeforeSave:false});
+    res.status(200)
+    .json(new ApiResponse(200,{},"Password reset successfully"))
+})
 export {
     registerUser,
     loginUser,
@@ -311,4 +453,8 @@ export {
     updateAccountDetail,
     updateUserAvatar,
     updateUserCoverImage,
+    verifyEmail,
+    resendEmailVerification,
+    resetPasswordWithOtp,
+    forgotPassword,
 }

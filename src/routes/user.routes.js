@@ -1,5 +1,17 @@
 import { Router } from "express";
-import { loginUser, logoutUser, registerUser,refreshAccessToken } from "../controllers/user.controller.js";
+import {  registerUser,
+    loginUser,
+    logoutUser,
+    refreshAccessToken,
+    changeCurrentPassword,
+    getCurrentUser,
+    updateAccountDetail,
+    updateUserAvatar,
+    updateUserCoverImage,
+    verifyEmail,
+    resendEmailVerification,
+    resetPasswordWithOtp,
+    forgotPassword, } from "../controllers/user.controller.js";
 import { uploadVideo } from "../controllers/video.controller.js";
 import { upload } from "../middlewares/multer.middleware.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
@@ -24,8 +36,8 @@ router.route("/login").post(loginUser)
 
 //secured routes
 router.route("/logout").post(verifyJWT,logoutUser)
-router.route("/refres-token").post(refreshAccessToken)
-router.route("/uploadVideo").post(
+router.route("/refresh-token").post(refreshAccessToken)
+router.route("/upload-Video").post(
     verifyJWT,
     upload.fields([
         {
@@ -39,5 +51,13 @@ router.route("/uploadVideo").post(
     ]),
     uploadVideo
 )
-
+router.route("/verify-email/:token").get(verifyEmail)
+router.route("/resend-verification").post(resendEmailVerification)
+router.route("/change-password").patch(verifyJWT,changeCurrentPassword)
+router.route("/update-account").patch(verifyJWT,updateAccountDetail)
+router.route("/update-avatar").patch(verifyJWT,upload.single("avatar"),updateUserAvatar)
+router.route("/me").get(verifyJWT,getCurrentUser)
+router.route("/update-coverimage").patch(verifyJWT,upload.single("coverImage"),updateUserCoverImage)
+router.route("/forgot-password").post(forgotPassword)
+router.route("/reset-password").patch(resetPasswordWithOtp)
 export default router

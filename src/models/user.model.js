@@ -1,7 +1,8 @@
 import mongoose, {Schema} from "mongoose";
 import jwt from "jsonwebtoken"
 import bcrypt from "bcrypt"
-
+import { type } from "os";
+import crypto from "crypto";
 
 
 
@@ -48,10 +49,25 @@ const userSchema =new Schema(
         },
         RefreshToken:{
             type:String,
+        },
+        isEmailVerified:{
+            type:Boolean,
+            default:false
+        },
+        emailVerificationToken:{
+            type:String
+        },
+        emailVerificationExpiry:{
+            type:Date
+        },
+        forgetPasswordToken:{
+            type:String,
+        },
+        forgetPasswordExpiry:{
+            type:Date
         }
-
     },
-    {Timestamps:true}
+    {timestamps:true}
 ) 
 
 userSchema.pre("save",async function (next) {
@@ -89,5 +105,22 @@ userSchema.methods.generateRefreshToken=function(){
         }
     )
 }
+userSchema.methods.generateEmailVerificationToken = function(){
+    // const crypto = require('crypto');
 
+    const token = crypto.randomBytes(32).toString('hex');
+
+    this.emailVerificationToken=crypto.createHash('sha256').update(token).digest('hex');
+
+    this.emailVerificationExpiry = Date.now()+24*60*60*1000;
+    return token;
+}
+userSchema.methods.generateForgetPasswordToken = function(){
+    const otp=Math.floor(10000+Math.random()*90000).toString();
+
+    this.forgetPasswordToken=crypto.createHash("sha256").update(otp).digest("hex");
+    this.forgetPasswordExpiry= Date.now()+ 1*60*1000;
+
+    return otp;
+}
 export const User=mongoose.model("User",userSchema)
