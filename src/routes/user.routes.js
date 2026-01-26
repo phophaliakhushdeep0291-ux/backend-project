@@ -64,6 +64,6 @@ router.route("/update-coverimage").patch(verifyJWT,upload.single("coverImage"),u
 router.route("/forgot-password").post(forgotPassword)
 router.route("/reset-password").patch(resetPasswordWithOtp)
 router.route("/resend-otp").post(resendForgotPasswordOtp)
-router.route("/watch-history").post(verifyJWT,getWatchHistory)
-router.route("/user-profile").post(verifyJWT,getUserChannelProfile)
+router.route("/watch-history").get(verifyJWT,getWatchHistory)
+router.route("/c/:username").get(verifyJWT,getUserChannelProfile)
 export default router
