@@ -5,6 +5,9 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import { deleteFromCloudinary, uploadOnCloudinary } from "../utils/cloudinary.js";
 import mongoose, { mongo } from "mongoose";
 import { User } from "../models/user.model.js";
+import { use } from "react";
+import { create } from "domain";
+import { title } from "process";
 
 const uploadVideo=asyncHandler(async(req,res)=>{
     const {title,description,isPublished} =  req.body
@@ -45,24 +48,62 @@ const getVideoById=asyncHandler(async(req,res)=>{
     if(!mongoose.isValidObjectId(videoId)){
         throw new ApiError(400,"Invalid video ID")
     }
-    const video=await Video.findById(videoId)
-        .populate("owner","username fullname avatar")
-    if(!video){
-        throw new ApiError(404,"Video not found")
-    }    
-    if(!video.isPublished&&video.owner._id.toString()!==req.user?._id?.toString()){
-        throw new ApiError(403,"This video is private")
+    const videoagg=await Video.aggregate([
+        {$match:{_id:mongoose.Types.ObjectId(videoId)}},
+        {
+            $lookup:{
+                from:"users",
+                localField:"owner",
+                foreignField:"_id",
+                as:"ownerDetails"
+            }
+        },
+        {$unwind:"$ownerDetails"},
+        {$match:{
+            $or:[
+                {isPublished:true},
+                {"ownerDetails._id":mongoose.Types.ObjectId(req.user?._id)}
+            ]
+        }},
+        {
+            $set:{
+                views:{$add:["$views",1]}
+            }
+        },
+        {
+            $project:{
+                title:1,
+                description:1,
+                videoFile:1,
+                thumbnail:1,
+                isPublished:1,
+                views:1,
+                createdAt:1,
+                updatedAt:1,
+                "owner._id":"$ownerDetails._id",
+                "owner.username":"$ownerDetails.username",
+                "owner.fullname":"$ownerDetails.fullname",
+                "owner.avatar":"$ownerDetails.avatar"
+            }
+        }
+    ]);
+        
+    if(!videoagg||videoagg.length==0){
+        throw new ApiError(403,"This Video is private or does not exist")
     }
-    video.views+=1
-    await video.save({validateBeforeSave:false})
+    const video=videoagg[0];
+    await Video.updateOne(
+        {_id: videoId},
+        {$inc:{views:1}}
+    )
     if(req.user){
         await User.findByIdAndUpdate(
             req.user._id,
-            {$addToSet:{watchHistory:videoId}}
+            {$addToSet:{watchHistory:[{video: videoId,lastWatchedAt:Date.now(),lastPosition:123}]}}
         )
     }
     return res.status(200)
-        .json(new ApiResponse(200,{},"Video fetch successfully"))
+        .json(new ApiResponse(200,video,"Video fetch successfully"))
 })
 const updateVideo= asyncHandler(async(req,res)=>{
     const {videoId}=req.params;
@@ -118,7 +159,72 @@ const togglePublishStatus = asyncHandler(async(req,res)=>{
     return res.status(200)
         .json(new ApiResponse(200,video,"Video publish status toggled successfully"))
 })
-
+const getAllVideos=asyncHandler(async(req,res)=>{
+    const now= new Date();
+    const getVideo=await Video.aggregate([
+        {
+            $match:{isPublished:true}
+        },
+        {
+            $set:{
+                ageInDays:{
+                    $divide:[
+                        {$subtract:[now,"$createdAt"]},
+                        1000*60*60*24
+                    ]
+                },
+                score:{
+                    $add:[
+                        {$multiply:["$views",0.5]},
+                        {
+                            $multiply:[
+                            {$divide:[1,{$add:["$ageInDays",1]}]},
+                            0.3
+                            ]
+                        },{
+                            $multiply: [{ $ifNull: ["$likes", 0] }, 0.2]
+                        }
+                    ]
+                }
+            }
+        },
+        {
+            $sort:{
+                score:-1,
+            }
+        },
+        {
+            $limit:10
+        },
+        {
+            $lookup:{
+                from:"users",
+                localField:"owner",
+                foreignField:"_id",
+                as:"owner"
+            }
+        },
+        {$unwind:"$owner"},
+        {
+            $project:{
+                title:1,
+                thumbnail:1,
+                views:1,
+                ageInDays:1,
+                "owner.username":1,
+                "owner.avatar":1,
+            }
+        }
+    ])
+    return res.status(200)
+        .json(new ApiResponse(200,getVideo,"Videos fetched successfully"))
+})
 export {
     uploadVideo,
+    togglePublishStatus,
+    deleteVideo,
+    updateVideo,
+    getVideoById,
+    uploadVideo,
+    getAllVideos,
 }

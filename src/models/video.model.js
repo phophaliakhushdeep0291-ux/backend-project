@@ -46,4 +46,7 @@ videoSchema.index(
 );
 
 videoSchema.plugin(mongooseAggregatePaginate)
+videoSchema.index({ isPublished: 1, createdAt: -1 });
+videoSchema.index({ views: -1 });
+videoSchema.index({ likes: -1 });
 export const Video=mongoose.model("Video",videoSchema)
