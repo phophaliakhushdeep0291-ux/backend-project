@@ -127,7 +127,7 @@ This backend is optimized for performance using **MongoDB indexing**, **aggregat
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/videotube-backend.git
+git clone https://github.com/phophaliakhushdeep0291-ux/video-platform-backend.git
 cd videotube-backend
 
 # Install dependencies
