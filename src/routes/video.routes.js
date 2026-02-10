@@ -15,8 +15,8 @@ const uploadVideoAndThumbnail = uploadVideoFiles.fields([
   { name: "thumbnail", maxCount: 1 }
 ]);
 router.post("/upload", verifyJWT, uploadVideoAndThumbnail, uploadVideo);
-router.route("/update/:videoId").patch(verifyJWT, updateVideo);
 router.route("/getvideos").get(getAllVideos);
+router.route("/update/:videoId").patch(verifyJWT, updateVideo);
 router.route("/toggle/:videoId/publish").patch(togglePublishStatus);
 router.route("/delete/:videoId").delete(verifyJWT,deleteVideo);
 router.route("/:videoId").get(getVideoById);
