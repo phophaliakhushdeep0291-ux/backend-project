@@ -87,7 +87,7 @@ This backend is optimized for performance using **MongoDB indexing**, **aggregat
 - Reduces database load significantly
 - Improves user experience for popular content
 
-
+---
 
 ## 🛠️ Tech Stack
 
