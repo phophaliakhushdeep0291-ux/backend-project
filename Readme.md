@@ -181,6 +181,7 @@ EMAIL_PASSWORD=your_app_password
 # Frontend URL (for email links)
 FRONTEND_URL=http://localhost:5173
 ```
+---
 ## 🌐 Live Demo
 ---
 
