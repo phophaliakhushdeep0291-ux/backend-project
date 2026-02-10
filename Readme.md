@@ -8,7 +8,7 @@
 
 **A professional video streaming platform backend with user authentication, video management, and performance optimization.**
 
-[Live Demo](#) • [Documentation](#-api-documentation)
+[Live Demo](#-live-demo) • [Documentation](#-api-documentation)
 
 </div>
 
@@ -151,7 +151,7 @@ EMAIL_PASSWORD=your_app_password
 # Frontend URL (for email links)
 FRONTEND_URL=http://localhost:5173
 ```
-
+## 🌐 Live Demo
 ---
 
 ## 📡 API Documentation
